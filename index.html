@@ -1,0 +1,1070 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Daily Machine Checks</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a5ea8">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Machine Checks">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column for the mechanic's checklist; a wider dashboard (day list, month grid), issues log and QR sheet for supervisors. */
+:root{
+  color-scheme:light;
+  --bg:#ecf0f2; --surface:#ffffff; --ink:#16252e; --muted:#586a75; --line:#d3dce1;
+  --accent:#0a5ea8; --accent-ink:#ffffff; --info-bg:#e1eefa;
+  --ok:#17794a; --ok-bg:#dff3e7; --warn:#9a6200; --warn-bg:#fbefd2; --bad:#b3261e; --bad-bg:#fbe1de;
+  --f-sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --bg:#11171c; --surface:#19222a; --ink:#e4ecf0; --muted:#94a6b1; --line:#2a3640;
+    --accent:#5db0f0; --accent-ink:#07202f; --info-bg:#16303f;
+    --ok:#52c98a; --ok-bg:#153626; --warn:#e5b04a; --warn-bg:#3a2d10; --bad:#f2796d; --bad-bg:#3d1b18;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-sans);font-size:15px;line-height:1.45;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:980px;margin:0 auto;padding-block:16px 40px}
+.wrap.narrow{max-width:560px}
+h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance}
+h2{font-size:1.05rem;font-weight:600}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.small{font-size:.86rem}
+.eyebrow{font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.chip{display:inline-block;font-family:var(--f-mono);font-size:.74rem;border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--muted);vertical-align:middle}
+.tag{display:inline-block;background:var(--bad-bg);color:var(--bad);font-size:.68rem;font-weight:700;letter-spacing:.07em;padding:2px 7px;border-radius:4px;vertical-align:middle}
+
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding-bottom:14px;border-bottom:2px solid var(--ink);margin-bottom:18px}
+.brand{font-weight:600;font-size:1.15rem}
+.tabs{display:flex;flex-wrap:wrap;gap:4px}
+.tab{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:6px;font-weight:500}
+.tab[aria-current="page"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.row.between{justify-content:space-between}
+.grow{flex:1;min-width:0}
+
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:9px 14px;font-weight:500;min-height:40px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.big{min-height:54px;font-size:1.05rem;width:100%}
+
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:500}
+input[type=text],input[type=password],input[type=date],input[type=month],textarea{
+  width:100%;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:11px 12px;min-height:46px}
+select{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:9px 10px;min-height:40px;max-width:100%}
+textarea{resize:vertical;min-height:96px}
+
+.seg{display:flex}
+.seg button{flex:1;border:1px solid var(--line);background:var(--surface);padding:10px 12px;min-height:46px;font-weight:500}
+.seg button:first-child{border-radius:6px 0 0 6px}
+.seg button:last-child{border-radius:0 6px 6px 0}
+.seg button+button{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.seg.yn button[aria-pressed="true"][data-v="ok"]{background:var(--ok);border-color:var(--ok);color:#fff}
+.seg.yn button[aria-pressed="true"][data-v="issue"]{background:var(--bad);border-color:var(--bad);color:#fff}
+.seg.shift button{font-size:1.1rem;font-weight:600;min-height:52px}
+
+.mhead{border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:16px}
+.mcode{font-family:var(--f-mono);font-weight:600;font-size:2.1rem;line-height:1.1;letter-spacing:.02em}
+.metarow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:6px}
+.items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.item .q{font-size:1.02rem;font-weight:500}
+.item.critical{border-left:5px solid var(--bad)}
+.item.answered-issue{border-color:var(--bad)}
+.banner{background:var(--info-bg);border-radius:6px;padding:10px 12px;font-size:.92rem}
+.picked{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.results{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.results button{width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:12px 14px;min-height:48px;display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
+.done{text-align:center;padding:28px 18px}
+.tick{width:68px;height:68px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;font-size:2rem;font-weight:600;margin:0 auto 12px}
+.tick.bad{background:var(--bad-bg);color:var(--bad)}
+.tick.wait{background:var(--warn-bg);color:var(--warn)}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.tile .n{font-family:var(--f-mono);font-size:1.7rem;font-weight:600;font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:.8rem;font-weight:600;white-space:nowrap}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+.pill.none{background:var(--warn-bg);color:var(--warn)}
+.mrow{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;border-left-width:5px}
+.mrow.ok{border-left-color:var(--ok)} .mrow.bad{border-left-color:var(--bad)} .mrow.none{border-left-color:var(--warn)}
+.mrow .info{min-width:0}
+.gridwrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+table.g{border-collapse:separate;border-spacing:0;font-size:.78rem}
+table.g th,table.g td{padding:0;text-align:center}
+table.g th{font-weight:500;color:var(--muted);padding:6px 0;min-width:28px}
+table.g th.lbl,table.g td.lbl{position:sticky;left:0;background:var(--surface);text-align:left;padding:6px 10px;min-width:120px;z-index:1;border-right:1px solid var(--line)}
+table.g td.lbl .a{font-family:var(--f-mono);font-weight:600;font-size:.82rem}
+table.g td.lbl .s{font-weight:400;font-size:.7rem;color:var(--muted);white-space:nowrap}
+.cell{width:26px;height:26px;margin:2px;border-radius:4px;border:1px solid transparent;display:inline-grid;place-items:center;font-size:.8rem;font-weight:600;padding:0;background:transparent}
+.cell.ok{background:var(--ok-bg);color:var(--ok)}
+.cell.bad{background:var(--bad-bg);color:var(--bad)}
+.cell.miss{border-color:var(--warn);color:var(--warn)}
+.cell.fut{border:1px dashed var(--line);cursor:default}
+.cell.sel{outline:2px solid var(--ink)}
+.cell.na{color:var(--muted)}
+table.g td.lbl.item{font-family:var(--f-sans);font-weight:500;font-size:.8rem;white-space:normal;min-width:150px;max-width:190px;line-height:1.25}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.82rem;color:var(--muted);align-items:center}
+.legend .cell{width:20px;height:20px;margin:0 4px 0 0;vertical-align:middle}
+.log{display:flex;flex-direction:column;gap:10px}
+.logitem{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--warn);border-radius:8px;padding:12px 14px}
+.logitem.crit{border-left-color:var(--bad)}
+.logitem.closed{border-left-color:var(--ok)}
+.logitem .q{font-weight:600;margin-top:6px}
+details.day{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+details.day summary{cursor:pointer;padding:12px 14px;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;list-style:none}
+details.day summary::-webkit-details-marker{display:none}
+.chk{border-top:1px solid var(--line);padding:12px 14px}
+.chk ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px}
+.chk li{display:flex;gap:8px;align-items:flex-start}
+.chk .r{font-weight:600;min-width:1.2em;text-align:center}
+.chk .r.ok{color:var(--ok)}
+.chk .r.bad{color:var(--bad)}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:22px;text-align:center;color:var(--muted)}
+.note{background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:10px 12px;font-size:.9rem}
+.err{background:var(--bad-bg);color:var(--bad);border-radius:6px;padding:10px 12px;font-size:.9rem;font-weight:500}
+
+.qrgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+.qrcard{display:flex;flex-direction:column;gap:10px;min-width:0}
+.qr{width:168px;height:168px;background:#fff;padding:8px;border-radius:6px;border:1px solid var(--line);display:grid;place-items:center;color:#586a75;font-size:.8rem;text-align:center}
+.qr img,.qr canvas{width:100%;height:auto;display:block}
+.linktxt{font-family:var(--f-mono);font-size:.72rem;word-break:break-all;color:var(--muted)}
+.qrtop{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.sn{font-family:var(--f-mono);font-weight:600;font-size:.95rem;text-align:right;word-break:break-all;max-width:160px;display:grid;gap:4px}
+.fixrow{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.fixrow[aria-pressed="true"]{border-color:var(--ok);background:var(--ok-bg)}
+.fixrow .box{flex:none;width:24px;height:24px;border:2px solid var(--muted);border-radius:5px;display:grid;place-items:center;font-weight:700;color:var(--ok);background:var(--surface)}
+.fixrow[aria-pressed="true"] .box{border-color:var(--ok)}
+.sel100{width:100%;min-height:46px}
+
+@media print{
+  body{background:#fff;color:#000}
+  .top,.noprint,.btn,.note,.linktxt{display:none!important}
+  .card{border:1px solid #999;break-inside:avoid}
+  .qrgrid{grid-template-columns:repeat(2,1fr)}
+  .gridwrap{overflow:visible}
+  details.day{break-inside:avoid}
+}
+.scanbox{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:1/1;max-width:100%}
+.scanbox video{width:100%;height:100%;object-fit:cover;display:block}
+.reticle{position:absolute;inset:18%;border:3px solid rgba(255,255,255,.92);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.3);pointer-events:none}
+.bigscan{min-height:84px;font-size:1.2rem}
+.rowbtns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+@media (prefers-reduced-motion:no-preference){.btn,.tab{transition:background .12s}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+/* ============ SETTINGS ============
+   The Web app URL of your Google Apps Script deployment (ends in /exec). */
+var API_URL='https://script.google.com/macros/s/AKfycbzbNNFeeMSTeVI42szfYTj-dJGNfN0IbTePR7s9gIuW5lNThldHFsZKCUzjXZKl5EdK/exec';
+/* ================================== */
+
+(function(){
+var $app=document.getElementById('app');
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+var pad=function(n){return String(n).padStart(2,'0')};
+var ymd=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+var today=function(){return ymd(new Date())};
+var longDate=function(d){return new Date(d+'T00:00:00').toLocaleDateString([], {weekday:'short',day:'numeric',month:'short',year:'numeric'})};
+var monthName=function(m){var p=m.split('-');return new Date(+p[0],+p[1]-1,1).toLocaleDateString([], {month:'long',year:'numeric'})};
+function lsGet(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function ssGet(k){try{return sessionStorage.getItem(k)||''}catch(e){return ''}}
+function ssSet(k,v){try{sessionStorage.setItem(k,v)}catch(e){}}
+var SHIFTS=['A','B'];
+var slug=function(s){return String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')};
+var CONFIGURED=!!API_URL&&API_URL.indexOf('PASTE_')!==0;
+var PAGE_BASE=location.href.replace(/#.*$/,'');
+var NOT_LOCAL=!/^(file|about):/.test(location.protocol);
+
+var S={machines:[],mLoaded:false,mErr:'',loc:'',
+  checks:[],cLoaded:false,cErr:'',pin:ssGet('mc_pin'),pinMsg:'',day:today(),mode:'day',
+  issues:[],iLoaded:false,iErr:'',iStatus:'open',
+  hMonth:today().slice(0,7),hChecks:[],hLoaded:false,hErr:'',hKey:'',
+  form:null,formErr:'',submitting:false,done:null,todayInfo:null,
+  locations:[],moves:[],vLoaded:false,vErr:'',openIss:null,offlineData:false,
+  cl:{sel:{},text:'',busy:false,msg:'',err:'',uid:''},
+  mech:{sel:null,q:'',results:[],busy:false,err:''}};
+try{var sm=JSON.parse(lsGet('mc_mech')||'null');if(sm&&sm.epf&&sm.name)S.mech.sel={epf:String(sm.epf),name:String(sm.name)}}catch(e){}
+
+function route(){var h=decodeURIComponent(location.hash.replace(/^#/,'')).toLowerCase(),parts=h.split('/');
+  if(parts[1]==='history')return {type:'hist',id:parts[0]};
+  if(!h||h==='home')return {type:'home'};
+  if(h==='scan')return {type:'scan'};
+  if(h==='dashboard')return {type:'dash'};
+  if(h==='machines')return {type:'mach'};
+  if(h==='issues')return {type:'issues'};
+  if(h==='moves')return {type:'moves'};
+  return {type:'machine',id:parts[0]}}
+function linkFor(id){return PAGE_BASE+'#'+id}
+function machineById(id){return S.machines.filter(function(x){return x.id===id})[0]}
+function locations(){var o={};S.machines.forEach(function(m){if(m.location)o[m.location]=1});return Object.keys(o).sort()}
+function inLoc(m){return !S.loc||m.location===S.loc}
+function sameAsset(a,b){return String(a).toUpperCase()===String(b).toUpperCase()}
+
+/* ---------- server ---------- */
+async function apiGet(params){
+  var r=await fetch(API_URL+(API_URL.indexOf('?')<0?'?':'&')+new URLSearchParams(params).toString());
+  if(!r.ok)throw new Error('http '+r.status);return r.json();
+}
+async function apiPost(body){
+  var ctl=window.AbortController?new AbortController():null,t=ctl?setTimeout(function(){ctl.abort()},30000):0;
+  try{
+    var r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body),signal:ctl?ctl.signal:undefined});
+    if(!r.ok)throw new Error('http '+r.status);
+    return await r.json();
+  }finally{clearTimeout(t)}
+}
+function applyMachines(d){
+  S.machines=(d.machines||[]).map(function(m){return {id:slug(m.asset),asset:m.asset,code:m.code||'',name:m.name||'',location:m.location||'',serial:m.serial||'',mno:m.mno||'',
+    items:(m.items||[]).map(function(i){return {q:i.q,c:!!i.c}})}});
+  S.locations=(d.locations||[]).slice();
+}
+async function loadMachines(){
+  S.mErr='';
+  if(!S.mLoaded){ /* show the saved machine list at once, refresh it in the background */
+    var c0=null;try{c0=JSON.parse(lsGet('mc_machines')||'null')}catch(x){}
+    if(c0&&c0.machines&&c0.machines.length){
+      applyMachines(c0);S.mLoaded=true;S.offlineData=false;softRender();
+      loadMachines();return;
+    }
+  }
+  S.offlineData=false;
+  try{
+    var d=await apiGet({action:'machines'});
+    if(d.error)throw new Error(d.error);
+    applyMachines(d);
+    lsSet('mc_machines',JSON.stringify({machines:d.machines||[],locations:d.locations||[]}));
+  }catch(e){
+    var cached=null;try{cached=JSON.parse(lsGet('mc_machines')||'null')}catch(x){}
+    if(cached&&cached.machines){applyMachines(cached);S.offlineData=true}
+    else S.mErr='Could not load the machine list. Check the internet connection and try again.';
+  }
+  S.mLoaded=true;
+  softRender();
+}
+function pinFail(kind){
+  S[kind]='pin';if(kind==='cErr')S.cLoaded=true;if(kind==='iErr')S.iLoaded=true;if(kind==='hErr')S.hLoaded=true;if(kind==='vErr')S.vLoaded=true;
+  if(S.pin)S.pinMsg='That PIN is not correct.';S.pin='';ssSet('mc_pin','');render();
+}
+async function loadChecks(silent){
+  if(!CONFIGURED)return;
+  var month=S.day.slice(0,7);
+  if(!silent){
+    var sc=null;try{sc=JSON.parse(ssGet('mc_checks_'+month)||'null')}catch(x){}
+    if(sc&&sc.length){S.checks=sc;S.cLoaded=true;S.cErr='';render();silent=true}
+    else{S.cLoaded=false;S.cErr='';render()}
+  }
+  try{
+    var d=await apiGet({action:'checks',month:month,pin:S.pin});
+    if(month!==S.day.slice(0,7))return;
+    if(d.error==='pin'){pinFail('cErr');return}
+    if(d.error)throw new Error(d.error);
+    S.checks=d.checks||[];S.cErr='';S.cLoaded=true;try{ssSet('mc_checks_'+month,JSON.stringify(S.checks))}catch(x){}
+  }catch(e){if(!silent||!S.cLoaded){S.cErr='load';S.cLoaded=true}}
+  softRender();
+}
+async function loadIssues(silent){
+  if(!CONFIGURED)return;
+  if(!silent){S.iLoaded=false;S.iErr='';render()}
+  try{
+    var d=await apiGet({action:'issues',pin:S.pin});
+    if(d.error==='pin'){pinFail('iErr');return}
+    if(d.error)throw new Error(d.error);
+    S.issues=d.issues||[];S.iErr='';S.iLoaded=true;
+  }catch(e){if(!silent||!S.iLoaded){S.iErr='load';S.iLoaded=true}}
+  softRender();
+}
+async function loadHistory(){
+  if(!CONFIGURED)return;
+  var r=route();if(r.type!=='hist')return;
+  var m=machineById(r.id);
+  if(!m){render();return}
+  var key=m.asset+'|'+S.hMonth;
+  S.hKey=key;S.hLoaded=false;S.hErr='';render();
+  try{
+    var d=await apiGet({action:'history',machine:m.asset,month:S.hMonth,pin:S.pin});
+    if(S.hKey!==key)return;
+    if(d.error==='pin'){pinFail('hErr');return}
+    if(d.error)throw new Error(d.error);
+    S.hChecks=d.checks||[];S.hLoaded=true;
+  }catch(e){if(S.hKey!==key)return;S.hErr='load';S.hLoaded=true}
+  render();
+}
+async function loadToday(){
+  var r=route();if(r.type!=='machine'||!CONFIGURED)return;
+  var m=machineById(r.id);if(!m)return;
+  try{
+    var d=await apiGet({action:'today',machine:m.asset});
+    if(d.error)return;
+    S.todayInfo={id:m.id,list:d.checks||[]};
+    if(route().type==='machine'&&route().id===m.id)softRender();
+  }catch(e){}
+}
+async function loadMoves(silent){
+  if(!CONFIGURED)return;
+  if(!silent){S.vLoaded=false;S.vErr='';render()}
+  try{
+    var d=await apiGet({action:'moves',pin:S.pin});
+    if(d.error==='pin'){pinFail('vErr');return}
+    if(d.error)throw new Error(d.error);
+    S.moves=d.moves||[];S.vErr='';S.vLoaded=true;
+  }catch(e){if(!silent||!S.vLoaded){S.vErr='load';S.vLoaded=true}}
+  softRender();
+}
+async function loadOpenIssues(){
+  var r=route();if(r.type!=='machine'||!CONFIGURED)return;
+  var m=machineById(r.id);if(!m)return;
+  try{
+    var d=await apiGet({action:'openissues',machine:m.asset});
+    if(d.error)return;
+    S.openIss={id:m.id,list:d.issues||[]};
+    if(route().type==='machine'&&route().id===m.id)softRender();
+  }catch(e){}
+}
+function routeLoad(){
+  var t=route().type;
+  if(!CONFIGURED||!S.mLoaded){render();return}
+  if(t==='dash')loadChecks(false);
+  else if(t==='issues')loadIssues(false);
+  else if(t==='moves')loadMoves(false);
+  else if(t==='hist')loadHistory();
+  else if(t==='machine'){render();loadToday();loadOpenIssues()}
+  else if(t==='scan'){if(!document.getElementById('scanvideo'))render()}
+  else render();
+}
+
+/* ---------- saved-on-this-phone queue (offline tolerance) ---------- */
+var QK='mc_queue',FK='mc_failed',flushing=false;
+var PERMANENT={unknown_mechanic:1,unknown_machine:1,bad_shift:1,checklist_changed:1,remarks_required:1,bad_location:1,action_required:1,nothing_to_close:1};
+function qGet(k){try{var a=JSON.parse(lsGet(k)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}}
+function qSet(k,a){lsSet(k,JSON.stringify(a))}
+function newUid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function hhmm(d){return pad(d.getHours())+':'+pad(d.getMinutes())}
+function enqueue(item){var q=qGet(QK);if(!q.some(function(x){return x.uid===item.uid}))q.push(item);qSet(QK,q)}
+async function flushQueue(){
+  if(flushing||!CONFIGURED)return;
+  if(!qGet(QK).length)return;
+  flushing=true;var sent=0;
+  try{
+    for(var guard=0;guard<200;guard++){
+      var q=qGet(QK);if(!q.length)break;
+      var it=q[0],d;
+      try{d=await apiPost(it.body)}catch(e){break}
+      if(d.ok||PERMANENT[d.error]){
+        if(d.ok)sent++;else{var f=qGet(FK);f.push({label:it.label,error:d.error});qSet(FK,f)}
+        qSet(QK,qGet(QK).filter(function(x){return x.uid!==it.uid}));
+      }else break;
+    }
+  }finally{flushing=false}
+  if(sent){
+    var t=route().type;
+    if(t==='machine'){loadToday();loadOpenIssues()}else if(t==='dash')loadChecks(true);else if(t==='issues')loadIssues(true);
+  }
+  softRender();
+}
+function queueHtml(){
+  var q=qGet(QK),f=qGet(FK),h='';
+  if(q.length)h+='<div class="note">'+q.length+' item'+(q.length===1?'':'s')+' saved on this phone, waiting to send. They send automatically when the phone is online. <button class="btn" data-act="flush" style="margin-top:8px">Send now</button></div>';
+  if(f.length)h+='<div class="err">'+f.length+' saved item'+(f.length===1?'':'s')+' could not be accepted: '+esc(f.map(function(x){return x.label+' ('+x.error+')'}).join('; '))+'. Do it again on the machine page. <button class="btn" data-act="dropfailed" style="margin-top:8px">Dismiss</button></div>';
+  return h;
+}
+function queueNote(m){
+  var h=queueHtml();
+  var mine=qGet(QK).filter(function(x){return x.body&&x.body.type!=='close'&&sameAsset(x.body.machine,m.asset)});
+  if(mine.length)h+='<div class="banner">A check for this machine is already saved on this phone and waiting to send.</div>';
+  if(S.offlineData)h+='<div class="note">No connection. Showing the checklist saved on this phone. Checks will be sent later.</div>';
+  else if(navigator.onLine===false)h+='<div class="note">No connection. You can still do the check. It will be sent when you are online.</div>';
+  return h;
+}
+
+/* ---------- mechanic picker ---------- */
+var mechTimer=null,mechSeq=0;
+/* Names found while online are kept on this phone, so a mechanic can still pick their name with no connection. */
+function mechCache(){try{var o=JSON.parse(lsGet('mc_mechs')||'{}');return o&&typeof o==='object'?o:{}}catch(e){return {}}}
+function rememberMechs(list){
+  if(!list||!list.length)return;
+  var o=mechCache();list.forEach(function(m){if(m&&m.epf&&m.name)o[String(m.epf)]=String(m.name)});
+  var keys=Object.keys(o);if(keys.length>300)keys.slice(0,keys.length-300).forEach(function(k){delete o[k]});
+  lsSet('mc_mechs',JSON.stringify(o));
+}
+function mechList(){try{var a=JSON.parse(lsGet('mc_mechlist')||'null');return Array.isArray(a)?a:null}catch(e){return null}}
+function localMechs(q){
+  var a=mechList();if(!a)return null;q=q.toLowerCase();
+  return a.filter(function(m){return String(m.name).toLowerCase().indexOf(q)>=0||String(m.epf).toLowerCase().indexOf(q)>=0})
+    .sort(function(x,y){return x.name<y.name?-1:1}).slice(0,8);
+}
+async function loadMechList(){
+  try{var d=await apiGet({action:'mechanics',all:'1'});
+    if(d&&d.mechanics){lsSet('mc_mechlist',JSON.stringify(d.mechanics));rememberMechs(d.mechanics);
+      if(S.mech.q.trim().length>=2&&!S.mech.sel){var l=localMechs(S.mech.q.trim());if(l){S.mech.results=l;S.mech.busy=false;updMech()}}}}
+  catch(e){}
+}
+function cachedMechs(q){
+  q=q.toLowerCase();var o=mechCache();
+  return Object.keys(o).filter(function(k){return o[k].toLowerCase().indexOf(q)>=0||k.toLowerCase().indexOf(q)>=0})
+    .map(function(k){return {epf:k,name:o[k]}}).sort(function(a,b){return a.name<b.name?-1:1}).slice(0,8);
+}
+function mechResultsHtml(){
+  var M=S.mech;
+  if(M.q.trim().length<2)return '<p class="muted small" style="margin:0">Type at least 2 letters of your name (or your EPF number), then tap it.</p>';
+  if(M.busy)return '<p class="muted small" style="margin:0">Searching…</p>';
+  if(M.err)return '<div class="err">'+esc(M.err)+'</div>';
+  if(!M.results.length)return '<div class="note">No match. Check the spelling, or ask your supervisor to add you to the Mechanics list.</div>';
+  return '<ul class="results">'+M.results.map(function(r,i){return '<li><button type="button" data-act="mechpick" data-i="'+i+'"><strong>'+esc(r.name)+'</strong><span class="muted mono">EPF '+esc(r.epf)+'</span></button></li>'}).join('')+'</ul>';
+}
+function updMech(){var el=document.getElementById('mech-results');if(el)el.innerHTML=mechResultsHtml()}
+function mechSearch(){
+  var M=S.mech,q=M.q.trim();
+  clearTimeout(mechTimer);mechSeq++;
+  if(q.length<2){M.busy=false;M.err='';M.results=[];updMech();return}
+  var loc=localMechs(q);
+  if(loc){M.busy=false;M.err='';M.results=loc;updMech();return}
+  M.busy=true;M.err='';updMech();
+  var seq=mechSeq;
+  mechTimer=setTimeout(async function(){
+    try{var d=await apiGet({action:'mechanics',q:q});if(seq!==mechSeq)return;if(d.error)throw new Error(d.error);M.results=d.mechanics||[];M.err='';rememberMechs(M.results)}
+    catch(e){
+      if(seq!==mechSeq)return;
+      M.results=cachedMechs(q);M.err=M.results.length?'':'Could not search. Check the internet connection. (Names you have used on this phone before still work offline.)';
+    }
+    M.busy=false;updMech();
+  },350);
+}
+function mechHtml(){
+  var M=S.mech;
+  if(M.sel)return '<div class="picked"><div><div class="eyebrow">Mechanic</div><strong>'+esc(M.sel.name)+'</strong> <span class="muted mono">EPF '+esc(M.sel.epf)+'</span></div><button class="btn" data-act="mechchange">Change</button></div>';
+  return '<div class="stack" style="gap:8px"><label class="f" for="f-mq">Your name or EPF number<input type="text" id="f-mq" data-f="mq" autocomplete="off" autocapitalize="words" placeholder="Start typing your name" value="'+esc(M.q)+'"></label><div id="mech-results" aria-live="polite">'+mechResultsHtml()+'</div></div>';
+}
+
+/* ---------- views ---------- */
+function header(cur){
+  var t=function(v,label,key){return '<button class="tab" data-act="nav" data-v="'+v+'"'+(cur===key?' aria-current="page"':'')+'>'+label+'</button>'};
+  return '<div class="top"><div class="brand">Daily Machine Checks</div><nav class="tabs" aria-label="Sections">'+t('home','Home','home')+t('dashboard','Dashboard','dash')+t('issues','Issues','issues')+t('moves','Moves','moves')+t('machines','Machines &amp; QR','mach')+'</nav></div>';
+}
+function setupNote(){return '<div class="note">This page is not connected to its Google Sheet yet. Put the Web app URL into <code>API_URL</code> in index.html (see README.md).</div>'}
+function pinCard(title,btn){
+  return '<div class="card stack" style="max-width:380px"><h2>'+esc(title)+'</h2><p class="muted" style="margin:0">Enter the PIN to see the records.</p>'+
+    '<label class="f" for="f-pin">PIN<input type="password" id="f-pin" data-f="pin" autocomplete="off"></label>'+
+    (S.pinMsg?'<div class="err">'+esc(S.pinMsg)+'</div>':'')+'<button class="btn primary" data-act="setpin">'+esc(btn)+'</button></div>';
+}
+function locFilter(){
+  var L=locations();if(!L.length)return '';
+  return '<select id="f-loc" data-f="loc" aria-label="Location">'+'<option value="">All locations</option>'+L.map(function(l){return '<option value="'+esc(l)+'"'+(S.loc===l?' selected':'')+'>'+esc(l)+'</option>'}).join('')+'</select>';
+}
+function machineLine(m){return '<strong class="mono">'+esc(m.asset)+'</strong> '+(m.code?'<span class="chip">'+esc(m.code)+'</span> ':'')+'<span class="muted">'+esc(m.name)+'</span>'}
+
+function readiness(m){
+  var f=S.form,n=m.items.length,ans=0,iss=0;
+  for(var i=0;i<n;i++){if(f.answers[i])ans++;if(f.answers[i]==='issue')iss++}
+  if(!S.mech.sel)return {ok:false,hint:'Choose your name to submit.',iss:iss};
+  if(!f.shift)return {ok:false,hint:'Choose your shift, A or B.',iss:iss};
+  if(S.locations.length&&!f.location)return {ok:false,hint:'Select where the machine is.',iss:iss};
+  if(ans<n)return {ok:false,hint:(n-ans)+' item'+(n-ans===1?'':'s')+' left to answer.',iss:iss};
+  if(iss>0&&!f.remarks.trim())return {ok:false,hint:'Describe the problem in the box below.',iss:iss};
+  return {ok:true,hint:iss?iss+' problem'+(iss===1?'':'s')+' will be logged.':'All items OK.',iss:iss};
+}
+
+function locHtml(m,f){
+  if(!S.locations.length)return '';
+  var opts=(f.location?'':'<option value="">Select location</option>')+S.locations.map(function(l){return '<option value="'+esc(l)+'"'+(f.location===l?' selected':'')+'>'+esc(l)+'</option>'}).join('');
+  var moved=f.location&&m.location&&f.location!==m.location;
+  return '<div style="display:flex;flex-direction:column;gap:6px"><label for="f-mloc" style="font-weight:500">Where is this machine now?</label><select id="f-mloc" class="sel100" data-f="mloc">'+opts+'</select>'+
+    (moved?'<div class="note">When you submit, the machine location changes from <strong>'+esc(m.location)+'</strong> to <strong>'+esc(f.location)+'</strong>.</div>':'<span class="muted small">Change it only if the machine has been moved.</span>')+'</div>';
+}
+function closeReady(){var C=S.cl;return !!(S.mech.sel&&!C.busy&&C.text.trim()&&Object.keys(C.sel).some(function(k){return C.sel[k]}))}
+function fixHtml(m){
+  var C=S.cl,oi=S.openIss&&S.openIss.id===m.id?S.openIss.list:[];
+  if(!oi.length&&!C.msg)return '';
+  var hint=!S.mech.sel?'Choose your name first.':(!Object.keys(C.sel).some(function(k){return C.sel[k]})?'Tick the problems that are fixed.':(!C.text.trim()?'Say what was done.':''));
+  return '<div class="card stack"><h2>Open problems on this machine'+(oi.length?' ('+oi.length+')':'')+'</h2>'+
+    (oi.length?'<p class="muted small" style="margin:0">If a problem has been fixed, tick it, write what was done and press Mark as fixed.</p><ul class="items">'+oi.map(function(i){var on=!!C.sel[i.no];
+      return '<li><button type="button" class="fixrow" data-act="clsel" data-no="'+esc(i.no)+'" aria-pressed="'+on+'"><span class="box">'+(on?'✓':'')+'</span><span style="min-width:0"><strong>'+(i.critical?'<span class="tag">SAFETY</span> ':'')+esc(i.item)+'</strong>'+
+        (i.problem?'<br><span class="small">'+esc(i.problem)+'</span>':'')+'<br><span class="muted small">Reported '+esc(i.date)+' by '+esc(i.by)+'</span></span></button></li>'}).join('')+'</ul>'+
+      '<label class="f" for="f-cl">What was done to fix it (required)<textarea id="f-cl" data-f="cltext" maxlength="500" placeholder="For example: removed thread, cleaned the rail">'+esc(C.text)+'</textarea></label>'+
+      '<div><button class="btn big" id="closebtn" data-act="close"'+(closeReady()?'':' disabled')+'>'+(C.busy?'Saving…':'Mark as fixed')+'</button><p class="muted small" id="closehint" style="margin:8px 0 0">'+esc(hint)+'</p></div>':'')+
+    (C.err?'<div class="err">'+esc(C.err)+'</div>':'')+(C.msg?'<div class="banner">'+esc(C.msg)+'</div>':'')+'</div>';
+}
+function viewMachine(id){
+  var shell=function(inner){return '<div class="wrap narrow">'+inner+'</div>'};
+  var head='<div class="mhead"><div class="mcode">'+esc(id.toUpperCase())+'</div></div>';
+  if(!CONFIGURED)return shell(head+setupNote());
+  if(!S.mLoaded)return shell(head+'<p class="muted">Loading checklist…</p>');
+  if(S.mErr)return shell(head+'<div class="err">'+esc(S.mErr)+'</div><p><button class="btn" data-act="reload">Try again</button></p>');
+  var m=machineById(id);
+  if(!m)return shell(head+'<div class="empty">This machine is not set up yet. Ask your supervisor to add it to the Machines tab of the Google Sheet.</div><p><button class="btn" data-act="nav" data-v="dashboard">Open dashboard</button></p>');
+  var mhead='<div class="mhead"><div class="eyebrow">Daily check · '+esc(longDate(today()))+'</div><div class="mcode">'+esc(m.asset)+'</div>'+(m.name?'<div>'+esc(m.name)+'</div>':'')+
+    '<div class="metarow">'+(m.code?'<span class="chip">Machine code '+esc(m.code)+'</span>':'')+(m.location?'<span class="chip">'+esc(m.location)+'</span>':'')+(m.mno?'<span class="chip">Asset '+esc(m.asset)+'</span>':'')+(m.serial?'<span class="chip">S/N:'+esc(m.serial)+'</span>':'')+'</div></div>';
+  if(!m.items.length)return shell(mhead+'<div class="empty">No checklist items are set up for machine code '+esc(m.code||'(none)')+'. Ask your supervisor to add them in the Checklist tab.</div>');
+  if(S.done&&S.done.id===id){
+    var d=S.done,bad=d.issues>0,q=d.queued;
+    var line=esc(m.asset)+' · Shift '+esc(d.shift)+' · '+esc(d.time)+(bad?' · '+d.issues+' problem'+(d.issues===1?'':'s')+' logged':' · all items OK');
+    var mv=d.moved?'<p class="small" style="margin:10px 0 0">Location '+(q?'will change':'updated')+': <strong>'+esc(d.from||'(none)')+' → '+esc(d.to)+'</strong></p>':'';
+    return shell('<div class="card done"><div class="tick'+(q?' wait':(bad?' bad':''))+'">'+(q?'↑':(bad?'!':'✓'))+'</div><h2>'+(q?'Saved on this phone':'Check submitted')+'</h2><p class="muted">'+line+'</p>'+
+      (q?'<p class="small" style="margin:10px 0 0">There is no connection right now. The check will be sent automatically when the phone is online. Do not clear the browser data until it is sent.</p>':'')+mv+
+      '<div class="stack" style="margin-top:14px">'+queueHtml()+'<button class="btn primary big" data-act="nav" data-v="scan">Scan next machine</button><button class="btn big" data-act="again">Submit another check</button></div></div>');
+  }
+  if(!S.form||S.form.id!==id)S.form={id:id,shift:'',answers:{},remarks:'',location:m.location||'',uid:''};
+  var f=S.form,r=readiness(m),items='';
+  m.items.forEach(function(it,i){
+    var a=f.answers[i];
+    items+='<li class="item'+(it.c?' critical':'')+(a==='issue'?' answered-issue':'')+'"><div class="q">'+(it.c?'<span class="tag">SAFETY</span> ':'')+esc(it.q)+'</div><div class="seg yn" role="group" aria-label="'+esc(it.q)+'">'+
+      '<button data-act="ans" data-i="'+i+'" data-v="ok" aria-pressed="'+(a==='ok')+'">OK</button>'+
+      '<button data-act="ans" data-i="'+i+'" data-v="issue" aria-pressed="'+(a==='issue')+'">Issue</button></div></li>';
+  });
+  var shifts=SHIFTS.map(function(s){return '<button data-act="shift" data-v="'+s+'" aria-pressed="'+(f.shift===s)+'">'+s+'</button>'}).join('');
+  var td=S.todayInfo&&S.todayInfo.id===id?S.todayInfo.list:[];
+  var banner=td.length?'<div class="banner">This machine was already checked today by <strong>'+esc(td[td.length-1].operator)+'</strong> (Shift '+esc(td[td.length-1].shift)+', '+esc(td[td.length-1].time)+'). One check a day is enough. Submit another only if something has changed.</div>':'';
+  return shell(mhead+'<div class="stack">'+banner+queueNote(m)+mechHtml()+fixHtml(m)+
+    '<div style="display:flex;flex-direction:column;gap:6px"><span style="font-weight:500">Shift</span><div class="seg shift" role="group" aria-label="Shift">'+shifts+'</div></div>'+locHtml(m,f)+
+    '<ul class="items">'+items+'</ul>'+
+    '<label class="f" for="f-rem">'+(r.iss?'Describe the problem (required)':'Remarks (optional)')+'<textarea id="f-rem" data-f="remarks" maxlength="1000" placeholder="'+(r.iss?'What is wrong and where':'Anything the next shift should know')+'">'+esc(f.remarks)+'</textarea></label>'+
+    (S.formErr?'<div class="err">'+esc(S.formErr)+'</div>':'')+
+    '<div><button class="btn primary big" id="submit" data-act="submit"'+(r.ok&&!S.submitting?'':' disabled')+'>'+(S.submitting?'Saving…':'Submit check')+'</button><p class="muted small" id="hint" style="margin:8px 0 0">'+esc(r.hint)+'</p></div>'+
+    '<div class="noprint rowbtns" style="border-top:1px solid var(--line);padding-top:14px"><button class="btn" data-act="nav" data-v="scan">Scan another machine</button><button class="btn" data-act="hist" data-id="'+esc(m.id)+'">Auditor: view this month\'s history</button></div>'+
+    '</div>');
+}
+
+function stat(m,date){
+  var l=S.checks.filter(function(c){return c.date===date&&sameAsset(c.asset,m.asset)});
+  var iss=0,crit=0;l.forEach(function(c){iss+=c.issues||0;crit+=c.critical||0});
+  return {list:l,n:l.length,issues:iss,critical:crit,state:!l.length?'none':(iss?'bad':'ok')};
+}
+
+function viewDash(){
+  if(!CONFIGURED)return setupNote();
+  if(S.cErr==='pin')return pinCard('Supervisor PIN','Open dashboard');
+  if(S.mErr)return '<div class="err">'+esc(S.mErr)+'</div><p><button class="btn" data-act="reload">Try again</button></p>';
+  if(S.mLoaded&&!S.machines.length)return '<div class="empty">No machines yet. Add them to the Machines tab of the Google Sheet.</div>';
+  var month=S.day.slice(0,7);
+  var controls='<div class="row between"><div class="seg" style="min-width:190px" role="group" aria-label="View"><button data-act="mode" data-v="day" aria-pressed="'+(S.mode==='day')+'">Daily</button><button data-act="mode" data-v="month" aria-pressed="'+(S.mode==='month')+'">Monthly</button></div>'+
+    '<div class="row">'+locFilter()+(S.mode==='day'?'<input type="date" id="f-day" data-f="day" value="'+esc(S.day)+'" aria-label="Date" style="width:auto">':'<input type="month" id="f-month" data-f="month" value="'+esc(month)+'" aria-label="Month" style="width:auto">')+
+    '<button class="btn" data-act="refresh">Refresh</button></div></div>';
+  var ms=S.machines.filter(inLoc),body;
+  if(!S.mLoaded||!S.cLoaded)body='<p class="muted">Loading…</p>';
+  else if(S.cErr)body='<div class="err">Could not load the checks. Check the internet connection.</div><p><button class="btn" data-act="refresh">Try again</button></p>';
+  else if(!ms.length)body='<div class="empty">No machines in this location.</div>';
+  else if(S.mode==='day')body=dayBody(ms);
+  else body=monthBody(ms,month);
+  return '<div class="stack">'+controls+body+'</div>';
+}
+function dayBody(ms){
+  var checked=0,withIssues=0,rows='';
+  ms.forEach(function(m){
+    var s=stat(m,S.day);if(s.n)checked++;if(s.issues)withIssues++;
+    var last=s.list[s.n-1];
+    var pill=s.state==='none'?'<span class="pill none">Not checked</span>':(s.critical?'<span class="pill bad">! Safety issue</span>':(s.state==='bad'?'<span class="pill bad">! '+s.issues+' issue'+(s.issues===1?'':'s')+'</span>':'<span class="pill ok">✓ Checked</span>'));
+    rows+='<div class="mrow '+s.state+'"><div class="info">'+machineLine(m)+'<div class="muted small">'+
+      (m.location?esc(m.location)+' · ':'')+(s.n?'Checked by '+esc(last.operator)+(last.epf?' (EPF '+esc(last.epf)+')':'')+' · Shift '+esc(last.shift)+' · '+esc(last.time):'No check recorded')+'</div></div>'+pill+'</div>';
+  });
+  return '<div class="muted">'+esc(longDate(S.day))+(S.loc?' · '+esc(S.loc):'')+'</div>'+
+    '<div class="tiles"><div class="tile"><div class="eyebrow">Checked</div><div class="n">'+checked+' / '+ms.length+'</div></div>'+
+    '<div class="tile"><div class="eyebrow">Not checked</div><div class="n">'+(ms.length-checked)+'</div></div>'+
+    '<div class="tile"><div class="eyebrow">Machines with issues</div><div class="n">'+withIssues+'</div></div></div>'+
+    '<div class="stack" style="gap:8px">'+rows+'</div>'+
+    '<div class="row"><button class="btn" data-act="nav" data-v="issues">Open the issues log</button></div>';
+}
+function monthBody(ms,month){
+  var p=month.split('-'),dim=new Date(+p[0],+p[1],0).getDate(),t=today();
+  var head='<tr><th class="lbl"></th>',d;
+  for(d=1;d<=dim;d++)head+='<th>'+d+'</th>';head+='</tr>';
+  var total=0,covered=0,rows='';
+  ms.forEach(function(m){
+    rows+='<tr><td class="lbl"><div class="a">'+esc(m.asset)+'</div><div class="s">'+esc([m.code,m.location].filter(Boolean).join(' · '))+'</div></td>';
+    for(var d2=1;d2<=dim;d2++){
+      var date=month+'-'+pad(d2);
+      if(date>t){rows+='<td><span class="cell fut" aria-hidden="true"></span></td>';continue}
+      var s=stat(m,date),cls,glyph,title;total++;
+      if(s.state==='none'){cls='miss';glyph='·';title='Not checked'}
+      else{covered++;cls=s.state;glyph=s.state==='bad'?'!':'✓';title='Shift '+s.list[s.n-1].shift+(s.issues?', '+s.issues+' issue'+(s.issues===1?'':'s'):', all OK')}
+      var lab=m.asset+' '+date+': '+title;
+      rows+='<td><button class="cell '+cls+(date===S.day?' sel':'')+'" data-act="goday" data-d="'+date+'" title="'+esc(lab)+'" aria-label="'+esc(lab)+'">'+glyph+'</button></td>';
+    }
+    rows+='</tr>';
+  });
+  var cov=total?Math.round(covered*100/total):0;
+  var cnt=S.checks.filter(function(c){return ms.some(function(m){return sameAsset(m.asset,c.asset)})});
+  var withIss=cnt.filter(function(c){return c.issues>0}).length;
+  return '<div class="muted">'+esc(monthName(month))+(S.loc?' · '+esc(S.loc):'')+'</div>'+
+    '<div class="tiles"><div class="tile"><div class="eyebrow">Checks logged</div><div class="n">'+cnt.length+'</div></div>'+
+    '<div class="tile"><div class="eyebrow">Days covered</div><div class="n">'+cov+'%</div></div>'+
+    '<div class="tile"><div class="eyebrow">Checks with issues</div><div class="n">'+withIss+'</div></div></div>'+
+    '<div class="gridwrap"><table class="g" aria-label="Checks per machine per day">'+head+rows+'</table></div>'+
+    '<div class="legend"><span><span class="cell ok">✓</span>Checked, all OK</span><span><span class="cell bad">!</span>Issue reported</span><span><span class="cell miss">·</span>Not checked</span><span>Tap a cell to open that day</span></div>'+
+    '<div class="row"><button class="btn" data-act="csv"'+(cnt.length?'':' disabled')+'>Export CSV</button><button class="btn" data-act="nav" data-v="issues">Open the issues log</button></div>';
+}
+
+function viewIssues(){
+  if(!CONFIGURED)return setupNote();
+  if(S.iErr==='pin')return pinCard('Supervisor PIN','Open issues log');
+  var list=S.issues.filter(function(i){
+    if(S.loc&&i.location!==S.loc)return false;
+    return S.iStatus==='all'||(S.iStatus==='open'?i.status==='Open':i.status==='Closed');
+  });
+  var all=S.issues.filter(function(i){return !S.loc||i.location===S.loc});
+  var open=all.filter(function(i){return i.status==='Open'}),openCrit=open.filter(function(i){return i.critical}).length;
+  var controls='<div class="row between"><div class="seg" style="min-width:250px" role="group" aria-label="Status">'+
+    ['open','closed','all'].map(function(k){return '<button data-act="istatus" data-v="'+k+'" aria-pressed="'+(S.iStatus===k)+'">'+k.charAt(0).toUpperCase()+k.slice(1)+'</button>'}).join('')+'</div>'+
+    '<div class="row">'+locFilter()+'<button class="btn" data-act="refresh">Refresh</button><button class="btn" data-act="icsv"'+(list.length?'':' disabled')+'>Export CSV</button></div></div>';
+  var body;
+  if(!S.iLoaded)body='<p class="muted">Loading…</p>';
+  else if(S.iErr)body='<div class="err">Could not load the issues log. Check the internet connection.</div>';
+  else body='<div class="tiles"><div class="tile"><div class="eyebrow">Open</div><div class="n">'+open.length+'</div></div>'+
+    '<div class="tile"><div class="eyebrow">Open safety issues</div><div class="n">'+openCrit+'</div></div>'+
+    '<div class="tile"><div class="eyebrow">Closed</div><div class="n">'+(all.length-open.length)+'</div></div></div>'+
+    '<p class="muted small" style="margin:0">A mechanic closes a problem by scanning the machine again and pressing Mark as fixed on its checklist page. You can also set Status to Closed in the Issues tab of the Google Sheet.</p>'+
+    (list.length?'<div class="log">'+list.map(function(i){
+      var closed=i.status==='Closed';
+      return '<div class="logitem'+(closed?' closed':(i.critical?' crit':''))+'"><div class="row between"><div>'+machineLine({asset:i.asset,code:i.code,name:i.name})+(i.location?' <span class="muted small">· '+esc(i.location)+'</span>':'')+'</div>'+
+        '<span class="pill '+(closed?'ok':'bad')+'">'+(closed?'✓ Closed':'Open')+'</span></div>'+
+        '<div class="q">'+(i.critical?'<span class="tag">SAFETY</span> ':'')+esc(i.item)+'</div>'+
+        (i.problem?'<div class="small" style="margin-top:4px">'+esc(i.problem)+'</div>':'')+
+        '<div class="muted small" style="margin-top:6px">Reported '+esc(i.date)+' '+esc(i.time)+' · Shift '+esc(i.shift)+' · '+esc(i.by)+(i.epf?' (EPF '+esc(i.epf)+')':'')+'</div>'+
+        (closed?'<div class="small" style="margin-top:4px">Closed '+esc(i.closedDate)+(i.closedBy?' by '+esc(i.closedBy):'')+(i.action?': '+esc(i.action):'')+'</div>':'')+'</div>';
+    }).join('')+'</div>':'<div class="empty">No '+(S.iStatus==='all'?'':S.iStatus+' ')+'issues'+(S.loc?' in '+esc(S.loc):'')+'.</div>');
+  return '<div class="stack">'+controls+body+'</div>';
+}
+
+function viewMoves(){
+  if(!CONFIGURED)return setupNote();
+  if(S.vErr==='pin')return pinCard('Supervisor PIN','Open moves');
+  var counts={};S.machines.forEach(function(m){var k=m.location||'(no location)';counts[k]=(counts[k]||0)+1});
+  var tiles='<div class="tiles">'+Object.keys(counts).sort().map(function(k){return '<div class="tile"><div class="eyebrow">'+esc(k)+'</div><div class="n">'+counts[k]+'</div><div class="muted small">machine'+(counts[k]===1?'':'s')+' now</div></div>'}).join('')+'</div>';
+  var list=S.moves.filter(function(x){return !S.loc||x.to===S.loc||x.from===S.loc});
+  var controls='<div class="row between"><h2>Machine locations</h2><div class="row">'+locFilter()+'<button class="btn" data-act="refresh">Refresh</button></div></div>';
+  var body;
+  if(!S.vLoaded)body='<p class="muted">Loading…</p>';
+  else if(S.vErr)body='<div class="err">Could not load the moves. Check the internet connection.</div>';
+  else body='<p class="muted small" style="margin:0">A move is recorded when a mechanic picks a different location during the daily check. The Machines tab of the Sheet always holds the latest location.</p>'+
+    (list.length?'<div class="log">'+list.map(function(x){
+      return '<div class="logitem"><div class="row between"><div>'+machineLine({asset:x.asset,code:'',name:x.name})+'</div><span class="pill none">'+esc(x.from||'(none)')+' → '+esc(x.to)+'</span></div>'+
+        '<div class="muted small" style="margin-top:6px">'+esc(x.date)+' '+esc(x.time)+' · Shift '+esc(x.shift)+' · '+esc(x.by)+(x.epf?' (EPF '+esc(x.epf)+')':'')+'</div></div>'}).join('')+'</div>':'<div class="empty">No moves recorded yet.</div>');
+  return '<div class="stack">'+controls+tiles+body+'</div>';
+}
+function viewMach(){
+  if(!CONFIGURED)return setupNote();
+  if(S.mErr)return '<div class="err">'+esc(S.mErr)+'</div><p><button class="btn" data-act="reload">Try again</button></p>';
+  if(!S.mLoaded)return '<p class="muted">Loading machines…</p>';
+  var ms=S.machines.filter(inLoc).slice().sort(function(a,b){return (a.location+'|'+a.asset)<(b.location+'|'+b.asset)?-1:1});
+  var cards='';
+  ms.forEach(function(m){
+    cards+='<div class="card qrcard"><div class="qrtop"><div class="qr" data-id="'+esc(m.id)+'">'+(NOT_LOCAL?'':'Upload the page to GitHub first')+'</div>'+((m.serial||m.mno)?'<div class="sn">'+(m.serial?'<div>S/N:'+esc(m.serial)+'</div>':'')+(m.mno?'<div>Asset:'+esc(m.asset)+'</div>':'')+'</div>':'')+'</div>'+
+      '<div><strong class="mono" style="font-size:1.2rem">'+esc(m.mno||m.asset)+'</strong> '+(m.code?'<span class="chip">'+esc(m.code)+'</span>':'')+'<div>'+esc(m.name)+'</div><div class="muted small">'+(m.location?esc(m.location)+' · ':'')+m.items.length+' checklist items</div></div>'+
+      '<div class="linktxt">'+esc(linkFor(m.id))+'</div>'+
+      '<div class="row noprint"><button class="btn" data-act="copy" data-id="'+esc(m.id)+'">Copy link</button><button class="btn" data-act="png" data-id="'+esc(m.id)+'">Save QR image</button></div></div>';
+  });
+  return '<div class="stack"><div class="card stack noprint"><h2>QR codes</h2><p class="muted small" style="margin:0">Each code opens that machine\'s checklist. Print them, laminate them and stick one on each machine. To add or change machines, checklist items or mechanics, edit the tabs in the Google Sheet and reload this page.</p>'+
+    '<div class="row"><button class="btn primary" data-act="print">Print these QR codes</button>'+locFilter()+'</div></div>'+
+    (ms.length?'<div class="qrgrid">'+cards+'</div>':'<div class="empty">No machines yet. Add them to the Machines tab of the Google Sheet.</div>')+'</div>';
+}
+
+function viewHistory(id){
+  var shell=function(inner){return '<div class="wrap">'+inner+'</div>'};
+  if(!CONFIGURED)return shell(setupNote());
+  var head0='<div class="mhead"><div class="mcode">'+esc(id.toUpperCase())+'</div></div>';
+  if(!S.mLoaded)return shell(head0+'<p class="muted">Loading…</p>');
+  if(S.mErr)return shell(head0+'<div class="err">'+esc(S.mErr)+'</div><p><button class="btn" data-act="reload">Try again</button></p>');
+  var m=machineById(id);
+  if(!m)return shell(head0+'<div class="empty">This machine is not set up yet. Ask your supervisor to add it to the Machines tab of the Google Sheet.</div>');
+  var month=S.hMonth;
+  var bar='<div class="top noprint"><div class="brand">Audit history</div><nav class="tabs"><button class="tab" data-act="back" data-id="'+esc(m.id)+'">Back to checklist</button></nav></div>';
+  var mh='<div class="mhead"><div class="eyebrow">Audit history · '+esc(monthName(month))+'</div><div class="mcode">'+esc(m.asset)+'</div>'+(m.name?'<div>'+esc(m.name)+'</div>':'')+
+    '<div class="metarow">'+(m.code?'<span class="chip">Machine code '+esc(m.code)+'</span>':'')+(m.location?'<span class="chip">'+esc(m.location)+'</span>':'')+'</div></div>';
+  if(S.hErr==='pin')return shell(bar+mh+pinCard('PIN required','Open history'));
+  var controls='<div class="row between noprint"><input type="month" id="f-hmonth" data-f="hmonth" value="'+esc(month)+'" aria-label="Month" style="width:auto"><div class="row">'+
+    '<button class="btn" data-act="hrefresh">Refresh</button><button class="btn" data-act="hcsv"'+(S.hLoaded&&S.hChecks.length?'':' disabled')+'>Export CSV</button><button class="btn" data-act="print">Print</button></div></div>';
+  var body;
+  if(!S.hLoaded)body='<p class="muted">Loading…</p>';
+  else if(S.hErr)body='<div class="err">Could not load the history. Check the internet connection.</div>';
+  else body=histBody(m,month);
+  return shell(bar+mh+'<div class="stack">'+controls+body+'</div>');
+}
+function histBody(m,month){
+  var p=month.split('-'),dim=new Date(+p[0],+p[1],0).getDate(),t=today(),byDate={},d,date;
+  S.hChecks.forEach(function(c){(byDate[c.date]=byDate[c.date]||[]).push(c)});
+  var items=m.items.map(function(i){return {q:i.q,c:i.c}});
+  S.hChecks.forEach(function(c){(c.answers||[]).forEach(function(a){if(!items.some(function(i){return i.q===a.q}))items.push({q:a.q,c:!!a.c})})});
+  var elapsed=0,covered=0,missed=[],issueChecks=0;
+  for(d=1;d<=dim;d++){date=month+'-'+pad(d);if(date>t)break;elapsed++;if(byDate[date])covered++;else missed.push(d)}
+  S.hChecks.forEach(function(c){if(c.issues>0)issueChecks++});
+  var head='<tr><th class="lbl"></th>';
+  for(d=1;d<=dim;d++)head+='<th>'+d+'</th>';
+  head+='</tr>';
+  var rows='';
+  items.forEach(function(it){
+    rows+='<tr><td class="lbl item">'+(it.c?'<span class="tag">SAFETY</span> ':'')+esc(it.q)+'</td>';
+    for(var d2=1;d2<=dim;d2++){
+      var dt=month+'-'+pad(d2),cs=byDate[dt]||[],cls,glyph,title;
+      if(dt>t){rows+='<td><span class="cell fut" aria-hidden="true"></span></td>';continue}
+      if(!cs.length){cls='miss';glyph='·';title='Not checked'}
+      else{
+        var seen=false,bad=false;
+        cs.forEach(function(c){(c.answers||[]).forEach(function(a){if(a.q===it.q){seen=true;if(!a.ok)bad=true}})});
+        if(!seen){cls='na';glyph='–';title='Not on the checklist that day'}
+        else if(bad){cls='bad';glyph='✗';title='Issue'}
+        else{cls='ok';glyph='✓';title='OK'}
+      }
+      var lab=it.q+' · '+dt+': '+title;
+      rows+='<td><span class="cell '+cls+'" title="'+esc(lab)+'" role="img" aria-label="'+esc(lab)+'">'+glyph+'</span></td>';
+    }
+    rows+='</tr>';
+  });
+  rows+='<tr><td class="lbl item">Checks done</td>';
+  for(d=1;d<=dim;d++){
+    date=month+'-'+pad(d);
+    if(date>t)rows+='<td><span class="cell fut" aria-hidden="true"></span></td>';
+    else rows+='<td><span class="cell na">'+(byDate[date]?byDate[date].length:'·')+'</span></td>';
+  }
+  rows+='</tr>';
+  var dates=Object.keys(byDate).sort().reverse();
+  var log=dates.length?'<div class="log">'+dates.map(function(dt){
+    var cs=byDate[dt],iss=0;cs.forEach(function(c){iss+=c.issues});
+    var pill=iss?'<span class="pill bad">! '+iss+' issue'+(iss===1?'':'s')+'</span>':'<span class="pill ok">✓ All OK</span>';
+    return '<details class="day"'+(iss?' open':'')+'><summary><span><strong>'+esc(longDate(dt))+'</strong> <span class="muted small">'+cs.length+' check'+(cs.length===1?'':'s')+'</span></span>'+pill+'</summary>'+
+      cs.map(function(c){
+        return '<div class="chk"><div class="row between"><strong>'+esc(c.time)+' · Shift '+esc(c.shift)+(c.location?' · '+esc(c.location):'')+'</strong><span class="small">Checked by <strong>'+esc(c.operator)+'</strong>'+(c.epf?' (EPF '+esc(c.epf)+')':'')+'</span></div><ul>'+
+          (c.answers||[]).map(function(a){return '<li><span class="r '+(a.ok?'ok':'bad')+'">'+(a.ok?'✓':'✗')+'</span><span>'+(a.c?'<span class="tag">SAFETY</span> ':'')+esc(a.q)+'</span></li>'}).join('')+'</ul>'+
+          (c.remarks?'<div class="small" style="margin-top:8px"><span class="muted">Remarks:</span> '+esc(c.remarks)+'</div>':'')+'</div>';
+      }).join('')+'</details>';
+  }).join('')+'</div>':'<div class="empty">No checks recorded for this machine in '+esc(monthName(month))+'.</div>';
+  return '<div class="tiles"><div class="tile"><div class="eyebrow">Days checked</div><div class="n">'+covered+' / '+elapsed+'</div></div>'+
+    '<div class="tile"><div class="eyebrow">Checks logged</div><div class="n">'+S.hChecks.length+'</div></div>'+
+    '<div class="tile"><div class="eyebrow">Checks with issues</div><div class="n">'+issueChecks+'</div></div></div>'+
+    (missed.length?'<div class="note">No check recorded on day '+missed.join(', ')+'.</div>':'')+
+    '<div class="gridwrap"><table class="g" aria-label="Checklist results per day for '+esc(m.asset)+'">'+head+rows+'</table></div>'+
+    '<div class="legend"><span><span class="cell ok">✓</span>OK</span><span><span class="cell bad">✗</span>Issue</span><span><span class="cell miss">·</span>No check</span></div>'+
+    '<h2>Every check, with who did it</h2>'+log;
+}
+
+function render(){
+  var r=route(),html;
+  if(r.type!=='scan')stopScan();
+  if(r.type==='machine')html=viewMachine(r.id);
+  else if(r.type==='home')html=viewHome();
+  else if(r.type==='scan')html=viewScan();
+  else if(r.type==='hist')html=viewHistory(r.id);
+  else html='<div class="wrap">'+header(r.type)+(r.type==='dash'?viewDash():(r.type==='issues'?viewIssues():(r.type==='moves'?viewMoves():viewMach())))+'</div>';
+  $app.innerHTML=html;
+  if(r.type==='mach')drawQR();
+  if(r.type==='scan')startScan();
+}
+function softRender(){
+  var a=document.activeElement;
+  if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'))return;
+  if(route().type==='scan')return;
+  render();
+}
+function drawQR(){
+  if(!window.QRCode||!NOT_LOCAL)return;
+  var els=$app.querySelectorAll('.qr[data-id]');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];el.textContent='';
+    try{new QRCode(el,{text:linkFor(el.dataset.id),width:256,height:256,correctLevel:QRCode.CorrectLevel.M})}catch(e){el.textContent='QR failed'}
+  }
+}
+
+
+/* ---------- home, scan and install ---------- */
+var installEvt=null;
+function isStandalone(){try{return window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}}
+function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)}
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvt=e;if(route().type==='home')softRender()});
+window.addEventListener('appinstalled',function(){installEvt=null;if(route().type==='home')render()});
+function installHtml(){
+  if(isStandalone())return '';
+  if(installEvt)return '<div class="card stack"><h2>Install the app</h2><p class="muted small" style="margin:0">Adds an icon to your home screen. It opens full screen and keeps working with a weak connection.</p><button class="btn" data-act="install">Install app</button></div>';
+  if(isIOS())return '<div class="card stack"><h2>Add to the home screen</h2><p class="muted small" style="margin:0">In Safari, tap the Share button, then <strong>Add to Home Screen</strong>.</p></div>';
+  return '<div class="card stack"><h2>Add to the home screen</h2><p class="muted small" style="margin:0">Open the browser menu and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p></div>';
+}
+function codeHtml(){
+  return '<div class="card stack"><label class="f" for="f-code">Or type the asset code<input type="text" id="f-code" data-f="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="For example SM001"></label>'+
+    '<div class="err" id="codeerr" style="display:none"></div><button class="btn" data-act="gocode">Open checklist</button></div>';
+}
+function viewHome(){
+  var nav=function(v,l){return '<button class="btn" data-act="nav" data-v="'+v+'">'+l+'</button>'};
+  return '<div class="wrap narrow"><div class="top"><div class="brand">Daily Machine Checks</div></div>'+(CONFIGURED?'':setupNote())+
+    '<div class="stack">'+queueHtml()+'<button class="btn primary big bigscan" data-act="nav" data-v="scan">Scan machine QR code</button>'+codeHtml()+installHtml()+
+    '<div class="card stack"><h2>Supervisors and auditors</h2><div class="metarow">'+nav('dashboard','Dashboard')+nav('issues','Issues')+nav('moves','Moves')+nav('machines','Machines &amp; QR')+'</div></div></div></div>';
+}
+function viewScan(){
+  return '<div class="wrap narrow"><div class="top"><div class="brand">Scan machine QR code</div><nav class="tabs" aria-label="Sections"><button class="tab" data-act="nav" data-v="home">Home</button></nav></div>'+
+    '<div class="stack"><div class="scanbox"><video id="scanvideo" playsinline muted autoplay></video><div class="reticle"></div></div>'+
+    '<p id="scanmsg" class="muted" role="status" aria-live="polite" style="margin:0">Starting the camera…</p>'+codeHtml()+'</div></div>';
+}
+var SC={stream:null,timer:0,det:null,last:'',lastAt:0,canvas:null,run:0};
+function scanMsg(t,bad){var el=document.getElementById('scanmsg');if(el){el.textContent=t;el.style.color=bad?'var(--bad)':''}}
+function stopScan(){
+  SC.run++;clearTimeout(SC.timer);
+  if(SC.stream){try{SC.stream.getTracks().forEach(function(t){t.stop()})}catch(e){}SC.stream=null}
+  var v=document.getElementById('scanvideo');if(v){try{v.srcObject=null}catch(e){}}
+}
+/* The fallback QR reader (jsQR). Tried in this order: a copy next to index.html (if you upload one), then two CDNs. */
+var JSQR_URLS=['jsQR.js','https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js','https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'],jsqrP=null;
+function loadJsQR(){
+  if(window.jsQR)return Promise.resolve(true);
+  if(jsqrP)return jsqrP;
+  var tryAt=function(i){
+    if(window.jsQR)return Promise.resolve(true);
+    if(i>=JSQR_URLS.length)return Promise.resolve(false);
+    return new Promise(function(res){
+      var el=document.createElement('script');el.src=JSQR_URLS[i];
+      el.onload=function(){res(!!window.jsQR)};el.onerror=function(){el.remove();res(false)};
+      document.head.appendChild(el);
+    }).then(function(ok){return ok?true:tryAt(i+1)});
+  };
+  jsqrP=tryAt(0).then(function(ok){if(!ok)jsqrP=null;return ok});
+  return jsqrP;
+}
+async function startScan(){
+  stopScan();var run=SC.run;
+  var v=document.getElementById('scanvideo');if(!v)return;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){scanMsg('This browser cannot use the camera here. Open the phone camera app and scan the label, or type the asset code below.',true);return}
+  var stream;
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false})}
+  catch(e){if(run!==SC.run)return;scanMsg(e&&e.name==='NotAllowedError'?'Camera permission was refused. Allow the camera for this page in the browser settings, or type the asset code below.':'The camera could not be started. Type the asset code below instead.',true);return}
+  if(run!==SC.run||route().type!=='scan'){stream.getTracks().forEach(function(t){t.stop()});return}
+  SC.stream=stream;v.srcObject=stream;try{await v.play()}catch(e){}
+  if(run!==SC.run)return;
+  SC.det=null;
+  if('BarcodeDetector' in window){try{SC.det=new window.BarcodeDetector({formats:['qr_code']})}catch(e){SC.det=null}}
+  if(!SC.det){var ok=await loadJsQR();if(run!==SC.run)return;if(!ok){scanMsg('The scanner could not be loaded. Open the phone camera app and scan the label, or type the asset code below.',true);return}}
+  scanMsg('Point the camera at the QR label on the machine.');
+  scanLoop(run);
+}
+function jsqrRead(v){
+  var w=v.videoWidth,h=v.videoHeight,k=Math.min(1,640/Math.max(w,h)),cw=Math.max(1,Math.round(w*k)),ch=Math.max(1,Math.round(h*k));
+  if(!SC.canvas)SC.canvas=document.createElement('canvas');
+  SC.canvas.width=cw;SC.canvas.height=ch;
+  var cx=SC.canvas.getContext('2d',{willReadFrequently:true});cx.drawImage(v,0,0,cw,ch);
+  var img=cx.getImageData(0,0,cw,ch),r=window.jsQR&&window.jsQR(img.data,cw,ch,{inversionAttempts:'dontInvert'});
+  return r&&r.data||'';
+}
+function scanLoop(run){
+  if(run!==SC.run)return;
+  var v=document.getElementById('scanvideo');
+  if(!v||v.readyState<2||!v.videoWidth){SC.timer=setTimeout(function(){scanLoop(run)},150);return}
+  var p;try{p=SC.det?SC.det.detect(v).then(function(r){return r&&r[0]&&r[0].rawValue||''}):Promise.resolve(jsqrRead(v))}catch(e){p=Promise.resolve('')}
+  p.catch(function(){return ''}).then(function(text){
+    if(run!==SC.run)return;
+    if(text&&scanHandle(text))return;
+    SC.timer=setTimeout(function(){scanLoop(run)},150);
+  });
+}
+/* A scanned code is only accepted if it is a link to this same page (or a known asset code). Anything else is ignored. */
+function scanTarget(text){
+  text=String(text).trim();
+  var base=function(u){return u.origin+u.pathname.replace(/index\.html$/,'')};
+  try{
+    var u=new URL(text),me=new URL(PAGE_BASE),h=u.hash.replace(/^#/,'').toLowerCase();
+    if(base(u)===base(me)&&h&&h!=='scan'&&h!=='home')return h;
+  }catch(e){}
+  var id=slug(text);
+  if(id&&S.machines.length&&machineById(id))return id;
+  return '';
+}
+function scanHandle(text){
+  var t=scanTarget(text);
+  if(!t){
+    var now=Date.now();
+    if(text!==SC.last||now-SC.lastAt>3000){SC.last=text;SC.lastAt=now;scanMsg('That QR code is not a machine label for this system. Try another.',true)}
+    return false;
+  }
+  stopScan();location.hash=t;return true;
+}
+function goCode(){
+  var el=document.getElementById('f-code'),raw=(el&&el.value||'').trim(),er=document.getElementById('codeerr');
+  if(!raw)return;
+  var id=slug(raw);
+  if(S.mLoaded&&!machineById(id)){if(er){er.textContent='No machine has the code "'+raw+'". Check the label and try again.';er.style.display=''}return}
+  location.hash=id;
+}
+
+/* ---------- actions ---------- */
+async function submit(){
+  var m=machineById(S.form.id);
+  if(!m||S.submitting||!readiness(m).ok)return;
+  var f=S.form;if(!f.uid)f.uid=newUid();
+  var body={uid:f.uid,at:Date.now(),machine:m.asset,shift:f.shift,epf:S.mech.sel.epf,location:f.location||'',remarks:f.remarks.trim(),
+    answers:m.items.map(function(it,i){return f.answers[i]==='ok'})};
+  S.submitting=true;S.formErr='';render();
+  try{
+    var d=await apiPost(body);
+    if(d.ok){
+      S.done={id:m.id,time:d.time,issues:d.issues,shift:f.shift,moved:!!d.moved,from:d.from,to:d.to};
+      if(d.moved)m.location=d.to;
+      S.form=null;S.todayInfo=null;S.openIss=null;flushQueue();
+    }
+    else if(d.error==='unknown_mechanic'){S.mech.sel=null;lsSet('mc_mech','');S.formErr='Your EPF number is not on the mechanics list. Search for your name again, or ask your supervisor to add you.'}
+    else if(d.error==='checklist_changed'){S.formErr='The checklist was updated. Reload the page and start again.'}
+    else if(d.error==='bad_location'){S.formErr='That location is not on the list. Reload the page and choose again.'}
+    else S.formErr='The check was not saved ('+(d.error||'unknown error')+'). Try again.';
+  }catch(e){
+    enqueue({uid:f.uid,label:'Check '+m.asset+' · Shift '+f.shift,body:body});
+    var moved=!!f.location&&f.location!==m.location;
+    S.done={id:m.id,queued:true,time:hhmm(new Date()),issues:body.answers.filter(function(x){return !x}).length,shift:f.shift,moved:moved,from:m.location,to:f.location};
+    if(moved)m.location=f.location;
+    S.form=null;S.todayInfo=null;
+  }
+  S.submitting=false;render();
+}
+async function closeIssues(){
+  var r=route(),m=machineById(r.id),C=S.cl;
+  if(r.type!=='machine'||!m||!closeReady())return;
+  var nos=Object.keys(C.sel).filter(function(k){return C.sel[k]});
+  if(!C.uid)C.uid=newUid();
+  var body={type:'close',uid:C.uid,at:Date.now(),machine:m.asset,epf:S.mech.sel.epf,issues:nos,action:C.text.trim()};
+  var label='Fixed '+nos.length+' problem'+(nos.length===1?'':'s')+' on '+m.asset;
+  var fresh=function(msg){S.cl={sel:{},text:'',busy:false,msg:msg,err:'',uid:''}};
+  C.busy=true;C.err='';C.msg='';render();
+  try{
+    var d=await apiPost(body);
+    if(d.ok){fresh(d.closed?'Marked as fixed. Thank you.':'Those problems were already closed.');loadOpenIssues();loadToday()}
+    else if(d.error==='unknown_mechanic'){S.mech.sel=null;lsSet('mc_mech','');C.busy=false;C.err='Your EPF number is not on the mechanics list. Search for your name again.'}
+    else{C.busy=false;C.err='Not saved ('+(d.error||'unknown error')+'). Try again.'}
+  }catch(e){
+    enqueue({uid:body.uid,label:label,body:body});
+    if(S.openIss&&S.openIss.id===m.id)S.openIss.list=S.openIss.list.filter(function(i){return nos.indexOf(String(i.no))<0});
+    fresh('Saved on this phone. It will be sent when you are online.');
+  }
+  render();
+}
+function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function saveBlob(blob,name){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500)}
+function saveCsv(rows,name){saveBlob(new Blob(['﻿'+rows.map(function(r){return r.map(csvCell).join(',')}).join('\n')],{type:'text/csv'}),name)}
+function exportCsv(){
+  var ms=S.machines.filter(inLoc);
+  var rows=[['Date','Time','Asset code','Machine code','Machine name','Location','Shift','Mechanic','EPF no','Issues','Safety issues','Failed items','Remarks']];
+  S.checks.filter(function(c){return ms.some(function(m){return sameAsset(m.asset,c.asset)})}).forEach(function(c){
+    var m=ms.filter(function(x){return sameAsset(x.asset,c.asset)})[0];
+    rows.push([c.date,c.time,c.asset,m.code,m.name,c.location||m.location,c.shift,c.operator,c.epf,c.issues,c.critical,(c.failed||[]).join('; '),c.remarks])});
+  saveCsv(rows,'machine-checks-'+S.day.slice(0,7)+'.csv');
+}
+function exportIssuesCsv(){
+  var rows=[['Issue no','Date','Time','Asset code','Machine code','Machine name','Location','Item','Safety','Problem details','Reported by','EPF no','Shift','Status','Action taken','Closed by','Closed date']];
+  S.issues.filter(function(i){
+    if(S.loc&&i.location!==S.loc)return false;
+    return S.iStatus==='all'||(S.iStatus==='open'?i.status==='Open':i.status==='Closed');
+  }).forEach(function(i){rows.push([i.no,i.date,i.time,i.asset,i.code,i.name,i.location,i.item,i.critical?'Yes':'No',i.problem,i.by,i.epf,i.shift,i.status,i.action,i.closedBy,i.closedDate])});
+  saveCsv(rows,'issues-log.csv');
+}
+function exportHistCsv(){
+  var rows=[['Date','Time','Asset code','Shift','Mechanic','EPF no','Item','Result','Remarks']];
+  S.hChecks.forEach(function(c){(c.answers||[]).forEach(function(a){rows.push([c.date,c.time,c.asset,c.shift,c.operator,c.epf,a.q,a.ok?'OK':'ISSUE',c.remarks])})});
+  saveCsv(rows,'history-'+route().id+'-'+S.hMonth+'.csv');
+}
+
+$app.addEventListener('click',async function(e){
+  var b=e.target.closest('[data-act]');if(!b||b.disabled)return;
+  var a=b.dataset.act,v=b.dataset.v,id=b.dataset.id;
+  if(a==='nav'){location.hash=v;return}
+  if(a==='ans'){S.form.answers[+b.dataset.i]=v;render();return}
+  if(a==='shift'){S.form.shift=v;render();return}
+  if(a==='submit'){submit();return}
+  if(a==='clsel'){var no=b.dataset.no;S.cl.sel[no]=!S.cl.sel[no];S.cl.msg='';render();return}
+  if(a==='close'){closeIssues();return}
+  if(a==='flush'){flushQueue();return}
+  if(a==='gocode'){goCode();return}
+  if(a==='install'){if(installEvt){try{installEvt.prompt();await installEvt.userChoice}catch(x){}installEvt=null;render()}return}
+  if(a==='dropfailed'){qSet(FK,[]);render();return}
+  if(a==='again'){S.done=null;S.form=null;render();loadToday();loadOpenIssues();return}
+  if(a==='mechpick'){var r=S.mech.results[+b.dataset.i];if(r){S.mech.sel={epf:String(r.epf),name:String(r.name)};lsSet('mc_mech',JSON.stringify(S.mech.sel));S.mech.q='';S.mech.results=[];render()}return}
+  if(a==='mechchange'){S.mech.sel=null;S.mech.q='';S.mech.results=[];S.mech.err='';render();var q=document.getElementById('f-mq');if(q)q.focus();return}
+  if(a==='reload'){S.mLoaded=false;render();loadMachines().then(routeLoad);return}
+  if(a==='mode'){S.mode=v;render();return}
+  if(a==='goday'){S.day=b.dataset.d;S.mode='day';render();return}
+  if(a==='refresh'){var rt=route().type;if(rt==='issues')loadIssues(false);else if(rt==='moves')loadMoves(false);else loadChecks(false);return}
+  if(a==='istatus'){S.iStatus=v;render();return}
+  if(a==='csv'){exportCsv();return}
+  if(a==='icsv'){exportIssuesCsv();return}
+  if(a==='print'){window.print();return}
+  if(a==='hist'){location.hash=id+'/history';return}
+  if(a==='back'){location.hash=id;return}
+  if(a==='hrefresh'){loadHistory();return}
+  if(a==='hcsv'){exportHistCsv();return}
+  if(a==='setpin'){var el=document.getElementById('f-pin');S.pin=(el&&el.value||'').trim();ssSet('mc_pin',S.pin);S.pinMsg='';S.cErr='';S.iErr='';S.hErr='';S.vErr='';routeLoad();return}
+  if(a==='copy'){
+    try{await navigator.clipboard.writeText(linkFor(id));b.textContent='Copied'}catch(x){b.textContent='Select the link above'}
+    setTimeout(function(){b.textContent='Copy link'},1800);return}
+  if(a==='png'){
+    var host=$app.querySelector('.qr[data-id="'+id+'"]'),cv=host&&host.querySelector('canvas'),m2=machineById(id);
+    if(!cv||!m2)return;
+    var out=document.createElement('canvas');out.width=360;var nl=(m2.serial?1:0)+(m2.mno?1:0);out.height=450+26*nl;var cx=out.getContext('2d');
+    cx.fillStyle='#fff';cx.fillRect(0,0,360,out.height);cx.imageSmoothingEnabled=false;cx.drawImage(cv,20,20,320,320);
+    cx.fillStyle='#000';cx.textAlign='center';cx.font='600 34px monospace';cx.fillText(m2.mno||m2.asset,180,378);
+    cx.font='500 18px sans-serif';cx.fillText(m2.name.slice(0,34),180,404);
+    var ly=430;cx.font='600 18px monospace';if(m2.serial){cx.fillText('S/N:'+m2.serial,180,ly);ly+=26}if(m2.mno){cx.fillText('Asset:'+m2.asset,180,ly)}
+    cx.font='400 14px sans-serif';cx.fillText('Scan to start the daily check',180,out.height-20);
+    out.toBlob(function(bl){saveBlob(bl,'QR-'+m2.asset+'.png')});return}
+});
+$app.addEventListener('input',function(e){
+  var f=e.target.dataset&&e.target.dataset.f;if(!f)return;
+  if(f==='mq'){S.mech.q=e.target.value;mechSearch();return}
+  if(f==='cltext'){S.cl.text=e.target.value;var cb=document.getElementById('closebtn');if(cb)cb.disabled=!closeReady();return}
+  if(f==='remarks'){
+    S.form.remarks=e.target.value;
+    var m=machineById(S.form.id);
+    if(m){var r=readiness(m),sb=document.getElementById('submit'),h=document.getElementById('hint');
+      if(sb)sb.disabled=!(r.ok&&!S.submitting);if(h)h.textContent=r.hint}
+  }
+});
+$app.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&e.target.id==='f-pin'){e.preventDefault();var b=$app.querySelector('[data-act="setpin"]');if(b)b.click()}
+  if(e.key==='Enter'&&e.target.id==='f-code'){e.preventDefault();goCode()}
+});
+$app.addEventListener('change',function(e){
+  var f=e.target.dataset&&e.target.dataset.f,v=e.target.value;
+  if(f==='loc'){S.loc=v;render();return}
+  if(f==='mloc'){if(S.form)S.form.location=v;render();return}
+  if(!v)return;
+  if(f==='day'){var nm=v.slice(0,7)!==S.day.slice(0,7);S.day=v;if(nm)loadChecks(false);else render()}
+  if(f==='month'){S.day=v===today().slice(0,7)?today():v+'-01';loadChecks(false)}
+  if(f==='hmonth'){S.hMonth=v;loadHistory()}
+});
+window.addEventListener('hashchange',function(){S.done=null;S.cl={sel:{},text:'',busy:false,msg:'',err:'',uid:''};routeLoad();window.scrollTo(0,0)});
+window.addEventListener('online',function(){flushQueue()});
+document.addEventListener('visibilitychange',function(){
+  if(!document.hidden)flushQueue();
+  if(route().type==='scan'){if(document.hidden)stopScan();else startScan()}
+});
+setInterval(flushQueue,30000);
+window.addEventListener('beforeprint',function(){document.querySelectorAll('details.day').forEach(function(x){x.open=true})});
+setInterval(function(){
+  var a=document.activeElement,t=route().type;
+  if(!CONFIGURED||document.hidden||(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA')))return;
+  if(t==='dash'&&S.cLoaded&&!S.cErr)loadChecks(true);
+  else if(t==='issues'&&S.iLoaded&&!S.iErr)loadIssues(true);
+},60000);
+
+/* ---------- start ---------- */
+render();
+if(CONFIGURED){loadMachines().then(function(){routeLoad();flushQueue()});loadMechList()}
+if(NOT_LOCAL&&!('BarcodeDetector' in window)&&navigator.onLine!==false)setTimeout(function(){loadJsQR()},1500);
+if('serviceWorker' in navigator&&NOT_LOCAL){try{navigator.serviceWorker.register('sw.js').catch(function(){})}catch(e){}}
+})();
+</script>
+</body>
+</html>
